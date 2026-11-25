@@ -37,12 +37,14 @@ export function workoutPlan(profile, rotation = 0) {
     const group = groups[(slot + rotation) % 2];
     const pool = available.filter(([,area]) => area === group);
     const ordered = pool.slice().sort(([a],[b]) => Number(profile.prefer.includes(b)) - Number(profile.prefer.includes(a)));
-    const count = profile.duration === 30 ? 3 : profile.duration === 60 ? 4 : 5;
     const sets = profile.age < 18 || profile.level === '초보자' ? 2 : profile.level === '상급자' ? 4 : 3;
     const reps = profile.goal === goals[1] ? 10 : profile.goal === goals[3] ? 15 : 12;
+    const rest = reps === 10 ? 90 : 60;
+    const minutesPerExercise = Math.ceil((sets * (reps * 3 + 30) + (sets - 1) * rest) / 60);
+    const count = Math.min(pool.length, 5, Math.floor((profile.duration - 8) / minutesPerExercise));
     return {
-      title:group, minutes:Math.min(Number(profile.duration),10 + Math.min(count,pool.length) * sets * 4),
-      items:ordered.slice(0,count).map(([name]) => ({name,sets,reps,rest:reps === 10 ? 90 : 60}))
+      title:group, minutes:8 + count * minutesPerExercise,
+      items:ordered.slice(0,count).map(([name]) => ({name,sets,reps,rest}))
     };
   });
 }
@@ -69,7 +71,7 @@ export function sumNutrition(items) {
 }
 
 export function mealPlan(profile, workouts, preferences) {
-  const exclusions = preferences.exclude.toLowerCase().split(/[\s,;\/·]+/).filter(Boolean);
+  const exclusions = preferences.exclude.normalize('NFKC').toLowerCase().split(/[\s,;\/·，()]+/).filter(Boolean);
   const pool = foods.filter(([name,,,,,,aliases='']) =>
     !exclusions.some(term => name.toLowerCase().includes(term) || aliases.includes(term)));
   const kinds = ['탄수화물','단백질','채소','지방'];

@@ -124,9 +124,15 @@ function mealTotals(meal,log) {
 }
 
 function totalActual() {
-  return sumNutrition(getMeals().flatMap((meal,index)=>{
-    const log=mealRecord(meal,index);
-    return log ? [mealTotals(meal,log)] : [];
+  return sumNutrition(Object.entries(record().meals ?? {}).flatMap(([key, log]) => {
+    if (log.totals) return [log.totals];
+    // Earlier records stored amounts and food names without a nutrient snapshot.
+    const [, names] = JSON.parse(key);
+    const items = names.map((name, index) => {
+      const [, , carb, protein, fat] = foods.find(food => food[0] === name);
+      return nutrition({carb, protein, fat, kcal: 4 * (carb + protein) + 9 * fat}, log.grams[index]);
+    });
+    return [sumNutrition([...items, {kcal:log.extraCalories ?? 0, carb:0, protein:0, fat:0}])];
   }));
 }
 
@@ -346,9 +352,10 @@ document.addEventListener('submit',event=>{
       case 'mealForm': {
         if (Number(values.extraCalories)>0&&!values.extra.trim()) throw new Error('추가 음식 이름을 입력해 주세요.');
         const meal=getMeals()[mealIndex];
-        const meals={...record().meals,[mealKey(meal,mealIndex)]:{
+        const log={
           grams:meal.foods.map((_,i)=>Number(values['grams'+i])),done:complete||data.has('done'),extra:values.extra.trim(),extraCalories:Number(values.extraCalories)
-        }};
+        };
+        const meals={...record().meals,[mealKey(meal,mealIndex)]:{...log,totals:mealTotals(meal,log)}};
         updateRecord({meals,mealsDone:getMeals().every((item,i)=>meals[mealKey(item,i)]?.done)},'식사 기록을 저장했습니다.');
         go('diet');
         break;
